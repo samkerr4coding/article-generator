@@ -1,0 +1,7 @@
+flowchart LR
+A[Scraping d'article] --> B(Nettoyage & Préparation)
+B --> C(Appel API Gemini<br>pour reformulation)
+C --> D(Envoi par email<br>avec le résultat)
+D --> E{Décision Humaine}
+E -- Valider --> F[Publication]
+E -- Modifier/Refuser --> G[Arrêt]

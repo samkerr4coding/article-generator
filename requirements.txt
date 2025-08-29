@@ -1,0 +1,15 @@
+chainlit
+langgraph
+langchain
+langchain-community
+langchain-ollama
+python-dotenv
+bs4
+feedparser
+requests
+pytrends
+praw
+newspaper3k
+lxml_html_clean
+newspaper3k
+beautifulsoup4

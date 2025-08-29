@@ -1,0 +1,33 @@
+# IntentionReasoner: Facilitating Adaptive LLM Safeguards through Intent Reasoning and Selective Query Refinement
+
+This document details the development of IntentionReasoner, a system designed to enhance adaptive LLM safeguards by incorporating intent reasoning and selective query refinement. The core innovation lies in a multi-faceted reward design system that guides the model toward generating safer and more effective responses.
+
+Initially, a dataset of 10,000 safety-critical examples was created through random interleaving. This resulted in a 24,000-sample dataset, utilized for reinforcement learning. Careful sample selection was crucial: overly simple examples limited performance gains, while excessively complex ones led to the model simply replicating the original query to “hack” the reward system.
+
+The dataset was subsequently split into two subsets based on label classification errors. From each subset, approximately 7,000 benign queries (14,000 total) were selected, using a 1:3:6 ratio for improvements, and a 3:2 ratio for CU:BU label distributions. Samples deemed trivially easy (all rewrites outperformed the original) or too difficult (no improvement was observed) were excluded. These remaining samples were then sorted in descending order by the number of reward improvements, forming a training curriculum.
+
+For queries with ground-truth labels ℓ ​ ( x ) ∈ { CU , BU } \ell(x)\in\{\text{CU},\,\text{BU}\}, a response *y* was generated for the original query *x*, and four rewritten queries *x*<sub>*i*</sub><sup>*’</sup> were generated, all using the Qwen2.5-3B-Instruct model. A reward model, Skywork-Reward-V2-Llama-3.1-8B (Liu et al. 2025a), denoted as *R<sub>q</sub>*, was employed to evaluate the quality of these responses before and after rewriting. Given an original query *x*, rewritten queries *x<sub>i</sub><sup>’</sup>*, and their corresponding responses *y* and *y<sub>i</sub><sup>’</sup>*, reward scores *R<sub>q</sub>(x, y)* and *R<sub>q</sub>(x, y<sub>i</sub><sup>’</sup>)* were calculated, determining the number of rewritten queries that yielded improved responses.
+
+After the supervised fine-tuning (SFT) process, a model denoted as *M<sub>SFT</sub>* was produced. For each training example, four outputs were sampled from *M<sub>SFT</sub>* with a temperature of 1, resulting in four predicted safety labels ℓ<sub>*i</sub>(x) and four rewritten queries *x<sub>i</sub><sup>’</sup>* for *i* = 1, 2, 3, 4. Each rewritten query *x<sub>i</sub><sup>’</sup>* was assessed for safety using WildGuard. Approximately 7,000 samples were identified requiring enhanced safety supervision – those where the rewritten queries were deemed unsafe, and roughly 3,000 samples where the ground-truth label ℓ ​ ( x ) = CH \ell(x)=\text{CH} but were misclassified by the model. This resulted in a total collection of around 10,000 such examples.
+
+The reinforcement learning (RL) dataset, denoted as 𝒟 RL \mathcal{D}_{\mathrm{RL}}, consisted of input pairs (I, x), where I denotes the prompt template and x is the user query. For each input, { y<sub>*i</sub> }<sub>*i*=1</sub><sup>G</sup> represents a group of G sampled outputs from the old policy π θ old \pi_{\theta_{\mathrm{old}}}. R<sub>*i*</sub> is the scalar reward assigned to output y<sub>*i*</sub>, and 𝐑 = { R 1 , R 2 , … , R G } \mathbf{R}=\{R_{1},R_{2},\ldots,R_{G}\} denotes the set of rewards in the current group. The normalized advantage A<sub>*i*</sub> was computed by standardizing R<sub>*i*</sub> within the group. ϵ \epsilon is the clipping threshold, which helps stabilize policy updates by limiting the change in policy probability ratios.
+
+To optimize the model, a modified GRPO objective was utilized, omitting the KL divergence term to enhance exploration. The loss function was defined as:
+
+Reward Design
+
+Five reward components were designed: (I) format reward *R<sub>f</sub>*, (II) label classification reward *R<sub>c</sub>*, (III) rewriting safety reward *R<sub>s</sub>*, (IV) rewriting utility reward *R<sub>u</sub>*, and (V) length reward *R<sub>l</sub>*. The total reward *R* was their sum: *R* = *R<sub>f</sub>* + *R<sub>c</sub>* + *R<sub>s</sub>* + *R<sub>u</sub>* + *R<sub>l</sub>* (4). Each component is described in detail below:
+
+(I) Format Reward *R<sub>f</sub>*: This reward enforces exactly one properly formatted instance of each required segment: `<thinking>...</thinking>`, `<label>...</label>`, and `<refined query>...</refined query>`. A score of 1 is awarded if the format is correct; otherwise, 0.
+
+(II) Label Classification Reward *R<sub>c</sub>*: A score of 1 is awarded for exact label matches. Considering certain similarity between adjacent labels, a partial reward of 0.5 is granted for predicting CU as BU, BU as CU, BU as BH, BH as BU, and CH as BH. No reward is given for other incorrect predictions.
+
+(III) Rewriting Safety Reward *R<sub>s</sub>*: WildGuard was used to assess the safety of the rewritten queries.
+
+(IV) Rewriting Utility Reward *R<sub>u</sub>*: A hybrid weighting strategy was adopted to balance semantic adherence with improvements in safety and utility.
+
+(V) Length Reward *R<sub>l</sub>*:  To encourage token-efficient rewrites, the query length reward *R<sub>query</sub>* was based on the token lengths of the original query *L<sub>x</sub>* and the rewritten query *L<sub>x’</sub>*. The maximum allowed length is *L<sub>max</sub>* = *L<sub>x</sub>* ⋅ ( 1 + r tol ​ ( L x ) ) L_{\text{max}}=L_{x}\cdot\left(1+r_{\text{tol}}(L_{x})\right). Here, r + r^{+} and r − r^{-} are the maximum and minimum tolerance ratios, and L + L^{+} , L − L^{-} are the upper and lower length bounds. Default values are r + = 2.0 r^{+}=2.0 , r − = 0.5 r^{-}=0.5 , L − = 20 L^{-}=20 , and L + = 200 L^{+}=200 . The final reward *R<sub>query</sub>* is defined as: *R<sub>query</sub>* norm = { 1.0 if ​ *L<sub>x’</sub>* ≤ *L<sub>max</sub>*, max ⁡ ( 0 , 1 − *L<sub>x’</sub>* − *L<sub>max</sub>* *L<sub>x</sub>*) otherwise . *R<sub>query</sub>*<sup>*norm*</sup> = { 1.0 if *L<sub>x’</sub>*≤ *L<sub>max</sub>*, max(0,1−(L<sub>x’</sub> − L<sub>max</sub>)/L<sub>x</sub>) otherwise .
+
+(V) Length Reward *R<sub>response</sub>*: To encourage concise responses, the response length reward *R<sub>response</sub>* was calculated using Min-Max normalization followed by inversion.
+
+The final length reward is a weighted sum of query and response length rewards, with λ = 0.8 \lambda=0.8 : *R<sub>l</sub>* = λ ⋅ *R<sub>query</sub>*<sup>*norm*</sup> + ( 1 − λ ) ⋅ *R<sub>response</sub>*<sup>*norm*</sup> (11).
