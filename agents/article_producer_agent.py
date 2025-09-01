@@ -131,12 +131,6 @@ def run(state):
         agent = ArticleProducerAgent2()
         result = agent.generate_article(state['article_fetcher_result'])
         logging.info(f"Finished Article producer agent 2 task, Thread ID: {task_thread_id}")
-
-        # Output rewritten article list to a JSON file (for traceability)
-        import json
-        with open("rewritten_article_output_2.json", "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-
     finally:
         if agent:
             del agent

@@ -211,8 +211,5 @@ def run(state):
     context = {}
     agent = SourceDataFetcher(context)
     output = agent.fetch_top_articles_json(articles_per_feed=5)
-    with open("original_article_output.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
-
     logging.info(f"Ending Article data fetcher output : {output}")
     return {"article_fetcher_result": output}
