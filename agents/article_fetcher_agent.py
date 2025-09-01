@@ -8,9 +8,9 @@ class SourceDataFetcher:
     QUALITY_AI_RSS_FEEDS = [
         "https://arxiv.org/rss/cs.AI",
         "https://towardsdatascience.com/feed",
-        # "https://machinelearningmastery.com/blog/feed/",
+        "https://machinelearningmastery.com/blog/feed/",
         # "https://www.deepmind.com/blog/feed/basic",
-        # "https://www.kdnuggets.com/feed"
+        "https://www.kdnuggets.com/feed"
     ]
 
     def __init__(self, context=None):

@@ -101,10 +101,6 @@ Open a Pull Request.
 ## TODO LIST
 
 - Create a gmail for the publisher : it will be used to suscribe to newsapi (for example but other sources , newsletter in the future)
-
-skarticlegenerator@gmail.com
-IRg92HRQMz9!tNB
-
 - identify a dozen of reliable sources for technical articles, news (focus on quality)
 - add more articles to produce
 - add a cleaner agent
