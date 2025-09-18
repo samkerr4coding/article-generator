@@ -1,8 +1,11 @@
 import json
 import logging
 import feedparser
+import os
+import re
 from newspaper import Article
 import concurrent.futures
+
 
 class ArticleDataFetcher:
     # Curated list of high-quality AI/ML RSS feeds
@@ -17,6 +20,8 @@ class ArticleDataFetcher:
     def __init__(self, context=None):
         self.context = context or {}
         self.feeds = self.QUALITY_AI_RSS_FEEDS
+        self.input_root = "articles/input"
+        os.makedirs(self.input_root, exist_ok=True)
 
     def fetch_articles_from_feed(self, rss_url, max_articles=10):
         """
@@ -57,8 +62,8 @@ class ArticleDataFetcher:
     def fetch_top_articles_json(self, articles_per_feed=10):
         """
         Fetches up to articles_per_feed articles' title/content/url from each RSS source.
-        Returns a flat list of all articles.
-        Optimisé avec ThreadPoolExecutor pour accélérer l'extraction des contenus.
+        Saves each article as Markdown under articles/input.
+        Returns a dict with all articles.
         """
         articles = []
         seen_urls = set()
@@ -76,14 +81,19 @@ class ArticleDataFetcher:
                 if count >= articles_per_feed:
                     break
 
-        # Extraction parallèle des contenus
-
-
+        # Parallel content extraction
         with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
             results = list(executor.map(self.safe_fetch, urls_to_fetch))
             articles = [art for art in results if art]
 
-        # Pad with empty articles if moins que le total attendu
+        # Save each article into articles/input as Markdown
+        for article in articles:
+            try:
+                self.save_article_as_md(article)
+            except Exception as ex:
+                logging.error(f"Failed to save article '{article.get('title')}' to Markdown: {ex}")
+
+        # Pad with empty articles if fewer than expected
         expected_total = len(self.feeds) * articles_per_feed
         while len(articles) < expected_total:
             articles.append({
@@ -101,17 +111,44 @@ class ArticleDataFetcher:
             logging.error(f"Erreur lors de l'extraction de l'article {url}: {e}")
             return None
 
+    def sanitize_filename(self, title: str) -> str:
+        filename = re.sub(r'[\\/*?:"<>|]', "_", title or "untitled")
+        return filename.strip()[:100] if filename else "untitled"
+
+    def save_article_as_md(self, article):
+        """
+        Save an article as Markdown in articles/input/<title>.md
+        """
+        title = article.get("title") or "Untitled"
+        content = article.get("content") or ""
+        url = article.get("url") or ""
+
+        safe_title = self.sanitize_filename(title)
+        filepath = os.path.join(self.input_root, f"{safe_title}.md")
+
+        with open(filepath, "w", encoding="utf-8") as f:
+            f.write(f"# {title}\n\n")
+            f.write(f"Source: {url}\n\n")
+            f.write(content.strip())
+
 
 def run(state):
     """
     Entrypoint for fetching articles.
     """
-    logging.info("Starting Article data fetcher (RSS version)")
-    context = {}
-    agent = ArticleDataFetcher(context)
-    output = agent.fetch_top_articles_json(articles_per_feed=5)
-    with open("original_article_output.json", "w", encoding="utf-8") as f:
-        json.dump(output, f, ensure_ascii=False, indent=2)
+    agent = None
+    try:
+        logging.info("Starting Article data fetcher (RSS version)")
+        context = {}
+        agent = ArticleDataFetcher(context)
+        output = agent.fetch_top_articles_json(articles_per_feed=10)
 
-    logging.info(f"Ending Article data fetcher output : {output}")
+        with open("original_article_output.json", "w", encoding="utf-8") as f:
+            json.dump(output, f, ensure_ascii=False, indent=2)
+
+        logging.info(f"Ending Article data fetcher output : {output}")
+
+    finally:
+        if agent:
+            del agent
     return {"article_fetcher_result": output}
