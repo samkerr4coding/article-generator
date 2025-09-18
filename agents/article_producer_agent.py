@@ -24,6 +24,8 @@ class ArticleProducerAgent2(BaseArticleProducer):
         articles = article_fetcher_result.get("articles", [])
         rewritten_articles = []
 
+        from prompts.rewrite_prompt import get_rewrite_prompt
+
         for idx, article in enumerate(articles):
             original_title = article.get("title") or "Untitled"
             original_content = article.get("content") or ""
@@ -33,28 +35,26 @@ class ArticleProducerAgent2(BaseArticleProducer):
                 rewritten_articles.append({"title": None, "content": None})
                 continue
 
-            prompt = (
-                "Rewrite the following news article so that both the title (as the first Markdown H1 heading, e.g., '# New Title') "
-                "and the content are completely different from the original wording, "
-                "but preserve all the information and meaning. Keep it about the same length as the original.\n\n"
-                "You may add notes and definitions for technical terms in the article to enhance clarity.\n"
-                "Return ONLY a valid Markdown file, starting with an H1 title, followed by the article content. "
-                f"add the url of the original article at the end Url:{original_url}"
-                "Do NOT include any JSON, explanations, comments, or code blocks. Only valid Markdown.\n\n"
-                "Here is the original article:\n"
-                f"Title: {original_title}\n"
-                f"Content: {original_content}\n\n"
-                "Please return your answer as a well-formatted Markdown article."
-            )
+            try:
+                prompt = get_rewrite_prompt(original_title, original_content, original_url)
+            except Exception as ex:
+                logging.error(f"Erreur lors de la génération du prompt pour l'article {idx}: {ex}")
+                rewritten_articles.append({"title": None, "content": None})
+                continue
 
             try:
                 response = self.llm.invoke(prompt)
+            except Exception as ex:
+                logging.error(f"LLM invocation failed pour l'article {idx}: {ex}")
+                rewritten_articles.append({"title": None, "content": None})
+                continue
+
+            try:
                 clean_markdown = self._remove_think_blocks(response)
                 markdown_title = self._extract_markdown_title(clean_markdown) or self._capitalize_title(original_title)
                 filename = self._sanitize_filename(markdown_title)
                 filepath = os.path.join(self.articles_dir, f"{filename}.md")
 
-                # Write the markdown file
                 with open(filepath, "w", encoding="utf-8") as f:
                     f.write(clean_markdown.strip())
 
@@ -62,13 +62,9 @@ class ArticleProducerAgent2(BaseArticleProducer):
                     "title": markdown_title,
                     "content": clean_markdown.strip()
                 })
-
             except Exception as ex:
-                logging.error(f"LLM invocation failed for article {idx}: {ex}")
-                rewritten_articles.append({
-                    "title": None,
-                    "content": None
-                })
+                logging.error(f"Erreur lors du post-traitement ou de la sauvegarde de l'article {idx}: {ex}")
+                rewritten_articles.append({"title": None, "content": None})
 
         return {"articles": rewritten_articles}
 

@@ -53,41 +53,53 @@ Design :
 
 ## Installation
 
-### Prerequisites
+1. Clone the repository :
+   ```bash
+   git clone https://github.com/your-repo/article-generator.git
+   cd article-generator
+   ```
+2. Installez les dépendances Python :
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Configurez le fichier `.env` (voir exemple ci-dessous).
 
-- Python 3.9+
-- [Ollama](https://ollama.com/download) installed and running
-- API credentials for LinkedIn and/or Medium
+## Exemple de configuration `.env`
+```
+OLLAMA_BASE_URL=http://localhost:11434
+LINKEDIN_API_KEY=your_linkedin_key
+MEDIUM_API_KEY=your_medium_key
+```
 
-### Setup
+## Lancement
 
-1. **Clone the repository:**
+- En local :
+  ```bash
+  python app.py
+  ```
+- Avec Docker :
+  ```bash
+  docker-compose up --build
+  ```
 
-    ```bash
-    git clone https://github.com/yourusername/automatic-article-publisher.git
-    cd automatic-article-publisher
-    ```
+## Tests
 
-2. **Install Python dependencies:**
+Pour exécuter les tests unitaires :
+```bash
+python -m unittest discover tests
+```
 
-    ```bash
-    pip install --upgrade pip
-    pip install -r requirements.txt
-    ```
+## Structure du projet
 
-3. **Set up environment variables:**
-
-    Copy `.env.example` to `.env` and fill in your API keys and configuration.
+- `app.py` : point d’entrée principal
+- `agents/` : agents LLM pour chaque étape du pipeline
+- `articles/` : exemples d’articles générés
+- `prompts/` : prompts utilisés pour la génération/comparaison
+- `state/` : gestion de l’état du graphe
+- `utils/` : utilitaires divers
+- `tests/` : tests unitaires
 
 ---
-
-## Usage
-
-Once setup is complete, you can run the article publisher pipeline as follows:
-
-```bash
-python app.py
-```
 
 ## Contributing
 
@@ -122,5 +134,3 @@ What I've already tried: [Previous attempts]
 What's blocking me: [Specific problem]
 Success criteria: [What good looks like]
 Now help me [specific request].
-
-

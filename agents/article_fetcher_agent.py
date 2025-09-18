@@ -2,8 +2,9 @@ import json
 import logging
 import feedparser
 from newspaper import Article
+import concurrent.futures
 
-class SourceDataFetcher:
+class ArticleDataFetcher:
     # Curated list of high-quality AI/ML RSS feeds
     QUALITY_AI_RSS_FEEDS = [
         "https://arxiv.org/rss/cs.AI",
@@ -57,9 +58,11 @@ class SourceDataFetcher:
         """
         Fetches up to articles_per_feed articles' title/content/url from each RSS source.
         Returns a flat list of all articles.
+        Optimisé avec ThreadPoolExecutor pour accélérer l'extraction des contenus.
         """
         articles = []
         seen_urls = set()
+        urls_to_fetch = []
 
         for rss_url in self.feeds:
             feed_articles = self.fetch_articles_from_feed(rss_url, max_articles=articles_per_feed)
@@ -67,15 +70,20 @@ class SourceDataFetcher:
             for art in feed_articles:
                 url = art['url']
                 if url and url not in seen_urls:
-                    full_art = self.fetch_full_article_content(url)
-                    if full_art:
-                        articles.append(full_art)
-                        seen_urls.add(url)
-                        count += 1
+                    urls_to_fetch.append(url)
+                    seen_urls.add(url)
+                    count += 1
                 if count >= articles_per_feed:
                     break
 
-        # Pad with empty articles if less than expected
+        # Extraction parallèle des contenus
+
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            results = list(executor.map(self.safe_fetch, urls_to_fetch))
+            articles = [art for art in results if art]
+
+        # Pad with empty articles if moins que le total attendu
         expected_total = len(self.feeds) * articles_per_feed
         while len(articles) < expected_total:
             articles.append({
@@ -86,6 +94,13 @@ class SourceDataFetcher:
 
         return {"articles": articles}
 
+    def safe_fetch(self, url):
+        try:
+            return self.fetch_full_article_content(url)
+        except Exception as e:
+            logging.error(f"Erreur lors de l'extraction de l'article {url}: {e}")
+            return None
+
 
 def run(state):
     """
@@ -93,7 +108,7 @@ def run(state):
     """
     logging.info("Starting Article data fetcher (RSS version)")
     context = {}
-    agent = SourceDataFetcher(context)
+    agent = ArticleDataFetcher(context)
     output = agent.fetch_top_articles_json(articles_per_feed=5)
     with open("original_article_output.json", "w", encoding="utf-8") as f:
         json.dump(output, f, ensure_ascii=False, indent=2)
